@@ -419,7 +419,7 @@ app.put('/updateRequestStatus/:roomNumber', async (req, res) => {
     }
 
     await Chat.updateMany({ roomNumber }, { status });
-
+    
     res.status(200).json({ success: true, message: 'Status updated successfully.' });
   } catch (error) {
     console.error('Error updating status:', error);
