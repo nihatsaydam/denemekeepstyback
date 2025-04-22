@@ -1041,7 +1041,7 @@ app.get('/ask2/:roomNumber', async (req, res) => {
     res.status(500).json({ success: false, error: 'Mesajlar çekilirken hata oluştu.' });
   }
 });
-// GET /getAskRequests endpoint’i
+// GET /getAskRequests endpoint'i
 app.get('/getAskRequests', async (req, res) => {
   try {
     // Veritabanından talepleri çek (örneğin, Ask modelin varsa)
@@ -1156,8 +1156,8 @@ app.get('/', (req, res) => {
   res.send('Welcome to Keepsty Backend API!');
 });
 // Sunucuyu başlat
-const PORT = process.env.PORT || 3000;
-app.listen(PORT, '0.0.0.0', () => {
+const PORT = process.env.PORT || 8080;
+app.listen(PORT, () => {
   console.log(`Server is running on port ${PORT}`);
 });
    
