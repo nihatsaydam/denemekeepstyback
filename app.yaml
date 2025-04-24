@@ -1,0 +1,31 @@
+runtime: nodejs16
+
+env_variables:
+  # Default MongoDB connection
+  MONGODB_URI_DEFAULT: ${MONGODB_URI_DEFAULT}
+  
+  # Hotel specific MongoDB connections
+  MONGODB_URI_HOTEL1: ${MONGODB_URI_HOTEL1}
+  MONGODB_URI_HOTEL2: ${MONGODB_URI_HOTEL2}
+  
+  # Email configuration
+  EMAIL_HOST: ${EMAIL_HOST}
+  EMAIL_PORT: ${EMAIL_PORT}
+  EMAIL_SECURE: ${EMAIL_SECURE}
+  EMAIL_USER_HOTEL1: ${EMAIL_USER_HOTEL1}
+  EMAIL_PASS_HOTEL1: ${EMAIL_PASS_HOTEL1}
+  EMAIL_USER_HOTEL2: ${EMAIL_USER_HOTEL2}
+  EMAIL_PASS_HOTEL2: ${EMAIL_PASS_HOTEL2}
+  
+  # Default hotel ID
+  ACTIVE_HOTEL_ID: ${ACTIVE_HOTEL_ID}
+
+handlers:
+  - url: /.*
+    script: auto
+    secure: always
+
+automatic_scaling:
+  min_instances: 1
+  max_instances: 5
+  target_cpu_utilization: 0.65 

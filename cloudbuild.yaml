@@ -1,0 +1,22 @@
+steps:
+# Node.js bağımlılıklarını yükle
+- name: 'gcr.io/cloud-builders/npm'
+  args: ['install']
+
+# Testleri çalıştır (opsiyonel)
+# - name: 'gcr.io/cloud-builders/npm'
+#   args: ['test']
+
+# App Engine'e deploy et
+- name: 'gcr.io/cloud-builders/gcloud'
+  args:
+  - 'app'
+  - 'deploy'
+  - '--quiet'
+  - '--promote'
+
+# Bildirim için Cloud Function tetikleyebilirsiniz
+# - name: 'gcr.io/cloud-builders/curl'
+#   args: ['-X', 'POST', 'https://us-central1-your-project.cloudfunctions.net/deployNotification']
+
+timeout: '1600s' 

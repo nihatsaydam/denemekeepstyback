@@ -3,33 +3,33 @@
 const express = require('express');
 const mongoose = require('mongoose');
 const cors = require('cors');
+const dotenv = require('dotenv');
+const nodemailer = require('nodemailer');
+
+// Yapılandırma dosyalarını yükle
+dotenv.config();
+const config = require('./config');
+const determineHotelId = require('./middleware/hotelMiddleware');
+const dbService = require('./database');
 
 const app = express();
-
-// MongoDB Atlas bağlantısı
-mongoose
-  .connect(
-    'mongodb+srv://nihatsaydam13131:nihat1234@keepsty.hrq40.mongodb.net/Keepsty?retryWrites=true&w=majority&appName=Keepsty'
-  )
-  .then(() => console.log('Connected to MongoDB Atlas!'))
-  .catch((err) => console.error('Error connecting to MongoDB Atlas:', err));
 
 // Middleware
 app.use(cors());
 app.use(express.json());
 app.use(express.static('public'));
-const nodemailer = require('nodemailer');
 
-// SMTP ayarlarınızı buraya ekleyin (örneğin, Gmail, SendGrid, vs.)
-const transporter = nodemailer.createTransport({
-  host: 'smtp.gmail.com',
-  port: 465,
-  secure: true, // 465 için true, 587 için false
-  auth: {
-    user: 'nihatsaydam13131@gmail.com',
-    pass: 'jgmp pons oxpc saxl'
-  }
+// Her istekte otel kimliğini belirleme middleware'i
+app.use(determineHotelId);
+
+// Nodemailer transporter'ını dinamik oluşturan middleware
+app.use((req, res, next) => {
+  const emailConfig = config.getEmailConfig(req.hotelId);
+  req.transporter = nodemailer.createTransport(emailConfig);
+  next();
 });
+
+// Model şemaları
 const housekeepingCleanSchema = new mongoose.Schema({
   cleaningOption: { type: String, required: true },
   username: { type: String, required: true },
@@ -41,12 +41,39 @@ const housekeepingCleanSchema = new mongoose.Schema({
     default: 'waiting' 
   }
 });
-const HousekeepingClean = mongoose.model('HousekeepingClean', housekeepingCleanSchema, 'housekeepingclean');
+
+// Gerçek isteklerde dinamik model oluşturma
+app.use(async (req, res, next) => {
+  try {
+    // Modelleri oluştur
+    const HousekeepingClean = await dbService.createModel(
+      'HousekeepingClean', 
+      housekeepingCleanSchema, 
+      'housekeepingclean',
+      req.hotelId
+    );
+    
+    // Diğer modelleri de benzer şekilde oluştur
+    // ...
+
+    // Modelleri request'e ekle
+    req.models = {
+      HousekeepingClean,
+      // Diğer modeller...
+    };
+    
+    next();
+  } catch (error) {
+    console.error("Model oluşturma hatası:", error);
+    res.status(500).json({ error: "Veritabanı bağlantı hatası" });
+  }
+});
 
 // POST endpoint: Yeni temizlik kaydı oluşturma ve e-posta gönderimi
 app.post('/save-cleaning-option', async (req, res) => {
   try {
     const { cleaningOption, username, roomNumber, timestamp, status } = req.body;
+    const { HousekeepingClean } = req.models;
 
     const newRecord = new HousekeepingClean({
       cleaningOption,
@@ -60,10 +87,11 @@ app.post('/save-cleaning-option', async (req, res) => {
 
     // E-posta içeriğini oluşturma
     const mailOptions = {
-      from: '"Housekeeping Uygulaması" <nihatsaydam13131@gmail.com>',
+      from: `"Housekeeping Uygulaması - ${req.hotelId}" <${config.getEmailConfig(req.hotelId).auth.user}>`,
       to: 'nihat.saydam@icloud.com',  // Bildirimi almak istediğiniz e-posta adresi
-      subject: 'Yeni Temizlik Kaydı Oluşturuldu',
+      subject: `Yeni Temizlik Kaydı Oluşturuldu - ${req.hotelId}`,
       text: `Yeni bir temizlik kaydı oluşturuldu.
+Otel: ${req.hotelId}
 Kullanıcı: ${username}
 Oda: ${roomNumber}
 Temizlik Seçeneği: ${cleaningOption}
@@ -71,7 +99,7 @@ Durum: ${status || 'waiting'}
 Tarih: ${new Date(timestamp || Date.now()).toLocaleString()}`
     };
 
-    transporter.sendMail(mailOptions, (error, info) => {
+    req.transporter.sendMail(mailOptions, (error, info) => {
       if (error) {
         console.error('E-posta gönderim hatası:', error);
       } else {
@@ -89,7 +117,7 @@ Tarih: ${new Date(timestamp || Date.now()).toLocaleString()}`
 // GET endpoint: Tüm temizlik kayıtlarını listeleme
 app.get('/cleaning-records', async (req, res) => {
   try {
-    const records = await HousekeepingClean.find();
+    const records = await req.models.HousekeepingClean.find();
     res.json(records);
   } catch (error) {
     console.error("Kayıt getirme hatası:", error);
@@ -107,7 +135,7 @@ app.patch('/cleaning-records/:id', async (req, res) => {
       return res.status(400).json({ message: 'Geçersiz durum değeri' });
     }
     
-    const updatedRecord = await HousekeepingClean.findByIdAndUpdate(id, { status }, { new: true });
+    const updatedRecord = await req.models.HousekeepingClean.findByIdAndUpdate(id, { status }, { new: true });
     if (!updatedRecord) {
       return res.status(404).json({ message: 'Kayıt bulunamadı' });
     }
@@ -162,7 +190,7 @@ Kullanıcı: ${username}
 Tarih: ${new Date().toLocaleString()}`
     };
 
-    transporter.sendMail(mailOptions, (error, info) => {
+    req.transporter.sendMail(mailOptions, (error, info) => {
       if (error) {
         console.error('E-posta gönderim hatası:', error);
       } else {
@@ -298,7 +326,7 @@ app.get('/cart-orders', async (req, res) => {
   Mesaj: ${message}`
         };
   
-        transporter.sendMail(mailOptions, (error, info) => {
+        req.transporter.sendMail(mailOptions, (error, info) => {
           if (error) {
             console.error('E-posta gönderim hatası:', error);
           } else {
@@ -493,7 +521,7 @@ Tarih: ${new Date().toLocaleString()}`
     };
 
     // E-posta gönderimini gerçekleştir
-    transporter.sendMail(mailOptions, (error, info) => {
+    req.transporter.sendMail(mailOptions, (error, info) => {
       if (error) {
         console.error('Error sending email:', error);
       } else {
@@ -556,7 +584,7 @@ Seçilen Zaman: ${selectedTime ? new Date(selectedTime).toLocaleString() : 'Beli
 Yönetim panelini kontrol edin.`
     };
 
-    transporter.sendMail(mailOptions, (error, info) => {
+    req.transporter.sendMail(mailOptions, (error, info) => {
       if (error) console.error('E-posta hatası:', error);
       else console.log('E-posta gönderildi:', info.response);
     });
@@ -645,7 +673,7 @@ app.post('/saveLaundry', async (req, res) => {
       text: `Yeni bir laundry siparişi geldi. Oda: ${roomNumber}, Siparişi veren: ${newLaundry.username}. Detaylar için yönetim panelini kontrol edebilirsiniz.`,
     };
 
-    transporter.sendMail(mailOptions, (error, info) => {
+    req.transporter.sendMail(mailOptions, (error, info) => {
       if (error) {
         console.error('E-posta gönderim hatası:', error);
       } else {
@@ -835,7 +863,7 @@ Status: waiting
 `
     };
 
-    transporter.sendMail(mailOptions, (error, info) => {
+    req.transporter.sendMail(mailOptions, (error, info) => {
       if (error) {
         console.error('E-posta gönderim hatası:', error);
       } else {
@@ -944,7 +972,7 @@ Hizmet Süresi: ${serviceTimeLabel} (${serviceTime})
 Detaylar için yönetim panelini kontrol edebilirsiniz.`
     };
 
-    transporter.sendMail(mailOptions, (error, info) => {
+    req.transporter.sendMail(mailOptions, (error, info) => {
       if (error) {
         console.error('E-posta gönderim hatası:', error);
       } else {
@@ -1151,12 +1179,30 @@ app.post('/housekeeping-requests', async (req, res) => {
     }
 });
 
-// Ana sayfa endpoint'i (Opsiyonel)
+// Google Cloud için shutdown handler
+const handleShutdown = async () => {
+  console.log('Shutting down gracefully...');
+  try {
+    await dbService.closeAllConnections();
+    console.log('Server shutdown complete');
+    process.exit(0);
+  } catch (err) {
+    console.error('Error during shutdown:', err);
+    process.exit(1);
+  }
+};
+
+// Graceful shutdown handlers
+process.on('SIGTERM', handleShutdown);
+process.on('SIGINT', handleShutdown);
+
+// Ana sayfa endpoint'i
 app.get('/', (req, res) => {
-  res.send('Welcome to Keepsty Backend API!');
+  res.send(`Welcome to Keepsty Backend API! (Hotel: ${req.hotelId})`);
 });
+
 // Sunucuyu başlat
-const PORT = process.env.PORT || 8080;
+const PORT = config.port;
 app.listen(PORT, () => {
   console.log(`Server is running on port ${PORT}`);
 });

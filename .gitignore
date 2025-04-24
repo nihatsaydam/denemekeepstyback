@@ -1,0 +1,34 @@
+# Node.js bağımlılıkları
+node_modules/
+npm-debug.log
+yarn-debug.log
+yarn-error.log
+
+# Environment değişkenleri - hassas bilgiler GitHub'a gitmemeli
+.env
+.env.local
+.env.development
+.env.production
+
+# Loglar
+logs/
+*.log
+
+# Derleme çıktıları
+dist/
+build/
+out/
+
+# Sistem dosyaları
+.DS_Store
+Thumbs.db
+
+# IDE dosyaları
+.idea/
+.vscode/
+*.sublime-project
+*.sublime-workspace
+
+# Geçici dosyalar
+tmp/
+temp/ 
